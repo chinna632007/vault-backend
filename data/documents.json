@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1784881623625,
+    "userId": 1784881582319,
+    "name": "MAIL.docx",
+    "type": "docx",
+    "size": "11.25 KB",
+    "category": "Education",
+    "uploadedAt": "2026-07-24",
+    "starred": true,
+    "tags": [],
+    "verified": false
+  },
+  {
+    "id": 1784881634907,
+    "userId": 1784881582319,
+    "name": "Students_Performance_data_set.xlsx",
+    "type": "xlsx",
+    "size": "205.97 KB",
+    "category": "Financial",
+    "uploadedAt": "2026-07-24",
+    "starred": false,
+    "tags": [],
+    "verified": false
+  }
+]
