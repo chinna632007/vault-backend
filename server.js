@@ -53,6 +53,8 @@ app.use((req, res, next) => {
   if (req.body && Object.keys(req.body).length > 0) {
     const logBody = { ...req.body };
     if (logBody.password) logBody.password = "[REDACTED]";
+    if (logBody.token) logBody.token = "[REDACTED]";
+    if (req.path === "/auth/forgot-password" && logBody.email) logBody.email = "[REDACTED]";
     console.log("    Body:", JSON.stringify(logBody, null, 2));
   }
   res.on("finish", () => {
