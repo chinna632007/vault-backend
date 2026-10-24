@@ -1,6 +1,6 @@
 # Email password reset setup
 
-The reset flow sends a one-time link to the address already saved on the DocuVault account. Configure these variables in the backend hosting provider (do not commit real credentials):
+The login page asks for a username, then the reset flow sends a one-time link to the email address saved on that DocuVault account. The link returns to the existing login page, which displays the new-password form. Configure these variables in the backend hosting provider (do not commit real credentials):
 
 | Variable | Purpose |
 | --- | --- |
@@ -10,7 +10,7 @@ The reset flow sends a one-time link to the address already saved on the DocuVau
 | `SMTP_USER` | Gmail address or other SMTP account used to send the email |
 | `SMTP_PASS` | SMTP password; for Gmail, use a Google App Password |
 | `SMTP_FROM` | Sender label and address, for example `DocuVault <account@gmail.com>` |
-| `FRONTEND_URL` | Public frontend origin, with no trailing slash |
+| `FRONTEND_URL` | Public frontend origin, with no trailing slash; use `http://localhost:3030` for local development |
 
 For Gmail, enable two-step verification and create an App Password for the sending account. The recipient is the user's registered DocuVault email; the sender account does not need to be the same address.
 
