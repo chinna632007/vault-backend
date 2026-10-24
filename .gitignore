@@ -1,8 +1,10 @@
 # Dependencies
 node_modules
 
-# Environment
+# Environment files and secrets
 .env
+.env.*
+!.env.example
 
 # Uploaded files (keep directory but ignore contents)
 uploads/*
@@ -10,4 +12,4 @@ uploads/*
 
 # Logs
 *.log
-npm-debug.log*uploads/
+npm-debug.log*
