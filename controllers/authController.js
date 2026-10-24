@@ -25,9 +25,9 @@ const createResetMailer = () => {
 
 // POST /auth/forgot-password
 exports.forgotPassword = async (req, res) => {
-  const email = String(req.body.email || "").trim().toLowerCase();
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: "Enter a valid email address" });
+  const username = String(req.body.username || "").trim();
+  if (!username) {
+    return res.status(400).json({ error: "Enter your username" });
   }
 
   const mailer = createResetMailer();
@@ -37,7 +37,7 @@ exports.forgotPassword = async (req, res) => {
 
   try {
     const user = await User.findOne({
-      email: { $regex: new RegExp(`^${escapeRegex(email)}$`, "i") },
+      username: { $regex: new RegExp(`^${escapeRegex(username)}$`, "i") },
     }).select("+passwordResetTokenHash +passwordResetExpiresAt");
     if (user) {
       const token = crypto.randomBytes(32).toString("hex");
@@ -45,8 +45,8 @@ exports.forgotPassword = async (req, res) => {
       user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
       await user.save();
 
-      const appUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-      const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`;
+      const appUrl = (process.env.FRONTEND_URL || "http://localhost:3030").replace(/\/$/, "");
+      const resetUrl = `${appUrl}/login?token=${encodeURIComponent(token)}`;
       await mailer.sendMail({
         from: process.env.SMTP_FROM,
         to: user.email,
@@ -56,7 +56,7 @@ exports.forgotPassword = async (req, res) => {
       });
     }
     // Do not reveal whether an account exists for the submitted email.
-    return res.json({ message: "If an account exists for that email, a reset link has been sent." });
+    return res.json({ message: "If an account exists for that username, a reset link has been sent to its registered email." });
   } catch (err) {
     console.error("Password reset request failed:", err.message);
     return res.status(503).json({ error: "Could not send the reset email right now. Please try again later." });
