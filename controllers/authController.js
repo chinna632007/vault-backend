@@ -3,12 +3,94 @@ const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 const User = require("../models/User");
 const Document = require("../models/Document");
 const Trash = require("../models/Trash");
 
 // Enforced storage limit in GB — applied to all users (backend source of truth)
 const STORAGE_LIMIT_GB = 10;
+
+const createResetMailer = () => {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) return null;
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: Number(SMTP_PORT),
+    secure: process.env.SMTP_SECURE === "true",
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  });
+};
+
+// POST /auth/forgot-password
+exports.forgotPassword = async (req, res) => {
+  const username = String(req.body.username || "").trim();
+  if (!username) {
+    return res.status(400).json({ error: "Enter your username" });
+  }
+
+  const mailer = createResetMailer();
+  if (!mailer) {
+    return res.status(503).json({ error: "Password reset email is not configured. Contact support." });
+  }
+
+  try {
+    const user = await User.findOne({
+      username: { $regex: new RegExp(`^${escapeRegex(username)}$`, "i") },
+    }).select("+passwordResetTokenHash +passwordResetExpiresAt");
+    if (user) {
+      const token = crypto.randomBytes(32).toString("hex");
+      user.passwordResetTokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      await user.save();
+
+      const appUrl = (process.env.FRONTEND_URL || "http://localhost:3030").replace(/\/$/, "");
+      const resetUrl = `${appUrl}/login?token=${encodeURIComponent(token)}`;
+      await mailer.sendMail({
+        from: process.env.SMTP_FROM,
+        to: user.email,
+        subject: "Reset your DocuVault password",
+        text: `We received a request to reset your DocuVault password. Use this link within 30 minutes: ${resetUrl}\n\nIf you did not request this, you can ignore this email. Your documents remain safe.`,
+        html: `<p>We received a request to reset your DocuVault password.</p><p><a href="${resetUrl}">Create a new password</a></p><p>This link expires in 30 minutes. If you did not request this, ignore this email. Your documents remain safe.</p>`,
+      });
+    }
+    // Do not reveal whether an account exists for the submitted email.
+    return res.json({ message: "If an account exists for that username, a reset link has been sent to its registered email." });
+  } catch (err) {
+    console.error("Password reset request failed:", err.message);
+    return res.status(503).json({ error: "Could not send the reset email right now. Please try again later." });
+  }
+};
+
+// POST /auth/reset-password
+exports.resetPassword = async (req, res) => {
+  const { token, password } = req.body;
+  if (typeof token !== "string" || token.length < 32) {
+    return res.status(400).json({ error: "This password reset link is invalid or expired." });
+  }
+  if (typeof password !== "string" || password.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters long." });
+  }
+
+  try {
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const user = await User.findOne({
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { $gt: new Date() },
+    }).select("+passwordResetTokenHash +passwordResetExpiresAt");
+    if (!user) return res.status(400).json({ error: "This password reset link is invalid or expired." });
+
+    user.password = await bcrypt.hash(password, 10);
+    user.passwordResetTokenHash = undefined;
+    user.passwordResetExpiresAt = undefined;
+    await user.save();
+    return res.json({ message: "Password updated. You can now sign in with your new password." });
+  } catch (err) {
+    console.error("Password reset failed:", err.message);
+    return res.status(500).json({ error: "Could not update your password. Please try again." });
+  }
+};
 
 const generateToken = (user) => {
   return jwt.sign(
