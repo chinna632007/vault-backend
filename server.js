@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const morgan = require("morgan");
 const connectDB = require("./config/db");
 const User = require("./models/User");
 const trashController = require("./controllers/trashController");
@@ -46,13 +47,22 @@ app.use(
 );
 app.use(express.json());
 
-// Request logging middleware - logs all incoming requests
+// Request logging with morgan (detailed HTTP request logs)
+app.use(morgan("dev", {
+  skip: (req, res) => {
+    // Skip logging for health check to reduce noise
+    return req.url === "/";
+  },
+}));
+
+// Request logging middleware - logs all incoming requests (with body details)
 app.use((req, res, next) => {
   const start = Date.now();
   console.log(`\n>>> ${req.method} ${req.url} - ${new Date().toISOString()}`);
   if (req.body && Object.keys(req.body).length > 0) {
     const logBody = { ...req.body };
     if (logBody.password) logBody.password = "[REDACTED]";
+    if (logBody.token) logBody.token = "[REDACTED]";
     console.log("    Body:", JSON.stringify(logBody, null, 2));
   }
   res.on("finish", () => {

@@ -328,6 +328,11 @@ const createTransport = () => {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    // Connection and socket timeouts to prevent hanging on platforms like Render
+    // that may block outbound SMTP. Fails fast instead of waiting 2+ minutes.
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT) || 10000,
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT) || 10000,
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT) || 5000,
   });
 };
 
