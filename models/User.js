@@ -15,6 +15,9 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: () => new Date().toISOString().split("T")[0],
     },
+    // Password reset (single-use, short-lived). Only the hash is ever stored.
+    passwordResetToken: { type: String, default: null },
+    passwordResetExpires: { type: Date, default: null },
   
   },
   { timestamps: true }
