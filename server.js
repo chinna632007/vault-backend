@@ -82,6 +82,9 @@ app.use("/stats", require("./routes/stats"));
 app.use("/wallet", require("./routes/wallet"));
 app.use("/downloads", require("./routes/downloads"));
 
+// Reset password page (backend-hosted) - serves reset form with token from URL
+app.get("/reset-password", require("./controllers/authController").resetPasswordPage);
+
 // Health check
 app.get("/", (req, res) => {
   res.json({ 
