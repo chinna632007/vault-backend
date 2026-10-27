@@ -84,7 +84,10 @@ app.use("/downloads", require("./routes/downloads"));
 
 // Health check
 app.get("/", (req, res) => {
-  res.json({ message: "DocuVault Backend API is running" });
+  res.json({ 
+    message: "DocuVault Backend API is running",
+    server_url: process.env.SERVER_URL
+  });
 });
 
 // Global error handler
