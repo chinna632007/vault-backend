@@ -294,7 +294,7 @@ exports.deleteAccount = async (req, res) => {
 };
 
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
+const { google } = require("googleapis");
 
 // --- Password-reset rate limiting (prevents token flooding / abuse).
 // Keyed by ip + email so the limit applies regardless of registration status,
@@ -315,37 +315,28 @@ const checkResetRateLimit = (key) => {
   return record.count <= RESET_RATE_LIMIT_MAX;
 };
 
-// --- SMTP transport used only by the backend to send reset emails ---
-const createTransport = () => {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    throw new Error("SMTP credentials are not configured");
+// --- Gmail API transport used only by the backend to send reset emails ---
+const getGmailClient = () => {
+  if (!process.env.GMAIL_CLIENT_ID || !process.env.GMAIL_CLIENT_SECRET || !process.env.GMAIL_REFRESH_TOKEN) {
+    throw new Error("Gmail API OAuth credentials are not configured");
   }
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === "true",
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    // Connection and socket timeouts to prevent hanging on platforms like Render
-    // that may block outbound SMTP. Fails fast instead of waiting 2+ minutes.
-    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT) || 10000,
-    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT) || 10000,
-    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT) || 5000,
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GMAIL_CLIENT_ID,
+    process.env.GMAIL_CLIENT_SECRET
+  );
+  oauth2Client.setCredentials({
+    refresh_token: process.env.GMAIL_REFRESH_TOKEN,
   });
+  return google.gmail({ version: "v1", auth: oauth2Client });
 };
 
-const sendResetPasswordEmail = async (to, resetUrl) => {
-  const transport = createTransport();
-  const from =
-    process.env.SMTP_FROM || `DocuVault <${process.env.SMTP_USER}>`;
-  await transport.sendMail({
-    from,
-    to,
-    subject: "Reset your DocuVault password",
-    text: `You requested a password reset for your DocuVault account.\n\nReset your password: ${resetUrl}\n\nThis link is single-use and expires after 30 minutes. If you did not request this, you can safely ignore this email — your password was not changed.\n\n— The DocuVault team`,
-    html: `<!DOCTYPE html>
+const buildResetEmailMime = (to, resetUrl) => {
+  const from = process.env.GMAIL_SENDER || "DocuVault <noreply@example.com>";
+  const subject = "Reset your DocuVault password";
+  const textBody = `You requested a password reset for your DocuVault account.\n\nReset your password: ${resetUrl}\n\nThis link is single-use and expires after 30 minutes. If you did not request this, you can safely ignore this email — your password was not changed.\n\n— The DocuVault team`;
+  const encodeMimeBody = (body) =>
+    Buffer.from(body, "utf8").toString("base64").match(/.{1,76}/g).join("\r\n");
+  const htmlBody = `<!DOCTYPE html>
 <html>
   <body style="font-family:Inter,system-ui,sans-serif;line-height:1.6;color:#1f2933;margin:0;padding:24px">
     <h2 style="color:#4f46e5">Reset your DocuVault password</h2>
@@ -366,7 +357,45 @@ const sendResetPasswordEmail = async (to, resetUrl) => {
     </p>
     <p style="font-size:14px;color:#6b7280">— The DocuVault team</p>
   </body>
-</html>`,
+</html>`;
+
+  const mimeParts = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/alternative; boundary="boundary_12345"`,
+    ``,
+    `--boundary_12345`,
+    `Content-Type: text/plain; charset=UTF-8`,
+    `Content-Transfer-Encoding: base64`,
+    ``,
+    encodeMimeBody(textBody),
+    ``,
+    `--boundary_12345`,
+    `Content-Type: text/html; charset=UTF-8`,
+    `Content-Transfer-Encoding: base64`,
+    ``,
+    encodeMimeBody(htmlBody),
+    ``,
+    `--boundary_12345--`,
+  ];
+  return mimeParts.join("\r\n");
+};
+
+const sendResetPasswordEmailViaGmail = async (to, resetUrl) => {
+  const gmail = getGmailClient();
+  const mimeEmail = buildResetEmailMime(to, resetUrl);
+  const encodedEmail = Buffer.from(mimeEmail)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  await gmail.users.messages.send({
+    userId: "me",
+    requestBody: {
+      raw: encodedEmail,
+    },
   });
 };
 
@@ -444,7 +473,12 @@ exports.forgotPassword = async (req, res) => {
       return res.status(400).json({ error: "Username and email do not match the same account" });
     }
 
-    const smtpConfigured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+    const gmailConfigured = Boolean(
+      process.env.GMAIL_CLIENT_ID &&
+        process.env.GMAIL_CLIENT_SECRET &&
+        process.env.GMAIL_REFRESH_TOKEN &&
+        process.env.GMAIL_SENDER
+    );
     let demo = false;
     let resetUrl = null;
 
@@ -455,15 +489,23 @@ exports.forgotPassword = async (req, res) => {
       const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3030").replace(/\/+$/, "");
       resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
 
-      if (smtpConfigured) {
+      if (gmailConfigured) {
         try {
-          await sendResetPasswordEmail(user.email, resetUrl);
+          await sendResetPasswordEmailViaGmail(user.email, resetUrl);
           user.passwordResetToken = hashedToken;
           user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000);
           await user.save();
-          console.log("[OK] Password reset email sent to", user.email, "| token stored (hash only), expires in 30 minutes");
+          console.log("[OK] Password reset email sent | token stored (hash only), expires in 30 minutes");
         } catch (mailErr) {
-          console.error("[WARN] Email delivery failed (SMTP configured):", mailErr.code || mailErr.message);
+          const apiError = mailErr.response?.data?.error;
+          console.error("[WARN] Email delivery failed (Gmail API):", {
+            status: mailErr.response?.status,
+            code: mailErr.code,
+            reason: Array.isArray(apiError?.errors)
+              ? apiError.errors.map(({ reason }) => reason).filter(Boolean)
+              : undefined,
+            message: apiError?.message || mailErr.message,
+          });
           return res.status(500).json({ error: "Failed to send password reset email. Please try again later." });
         }
       } else {
@@ -471,7 +513,7 @@ exports.forgotPassword = async (req, res) => {
         user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000);
         await user.save();
         demo = true;
-        console.log("[WARN] SMTP not configured — demo mode: reset link generated but email not sent");
+        console.log("[WARN] Gmail API not configured — demo mode: reset link generated but email not sent");
       }
     } else {
       console.log(
@@ -484,7 +526,7 @@ exports.forgotPassword = async (req, res) => {
         ? "Demo mode: email not configured. Use the simulated reset link below."
         : "If an account exists for that email address, a password reset link has been sent. Please check your inbox.",
       demo,
-      // Only return resetUrl in demo mode (SMTP not configured). In production,
+      // Only return resetUrl in demo mode (Gmail API not configured). In production,
       // the reset link is sent by email only — never exposed in the API response.
       resetUrl: demo ? resetUrl : null,
     });

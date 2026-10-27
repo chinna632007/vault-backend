@@ -15,10 +15,10 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "googleapis": "^188.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.8.0",
     "morgan": "^1.12.1",
-    "multer": "^2.2.0",
-    "nodemailer": "^10.2.1"
+    "multer": "^2.2.0"
   }
 }
