@@ -58,7 +58,9 @@ app.use(morgan("dev", {
 // Request logging middleware - logs all incoming requests (with body details)
 app.use((req, res, next) => {
   const start = Date.now();
-  console.log(`\n>>> ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  // Redact reset tokens from URL query strings so they never appear in logs
+  const safeUrl = req.url.replace(/[?&]token=[^&]*/g, "token=[REDACTED]");
+  console.log(`\n>>> ${req.method} ${safeUrl} - ${new Date().toISOString()}`);
   if (req.body && Object.keys(req.body).length > 0) {
     const logBody = { ...req.body };
     if (logBody.password) logBody.password = "[REDACTED]";
@@ -67,7 +69,8 @@ app.use((req, res, next) => {
   }
   res.on("finish", () => {
     const duration = Date.now() - start;
-    console.log(`<<< ${req.method} ${req.url} - Status: ${res.statusCode} - ${duration}ms`);
+    const safeUrl = req.url.replace(/[?&]token=[^&]*/g, "token=[REDACTED]");
+    console.log(`<<< ${req.method} ${safeUrl} - Status: ${res.statusCode} - ${duration}ms`);
   });
   next();
 });
