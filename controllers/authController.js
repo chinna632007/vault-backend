@@ -538,26 +538,6 @@ exports.forgotPassword = async (req, res) => {
 };
 
 // POST /auth/reset-password
-// GET /reset-password — Serve the reset-password form (backend-hosted)
-exports.resetPasswordPage = async (req, res) => {
-  try {
-    const token = req.query.token;
-    if (!token) {
-      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3030";
-      return res.status(400).send(`<!DOCTYPE html><html><head><title>Invalid Reset Link</title></head><body style="font-family:system-ui,sans-serif;max-width:400px;margin:40px auto;padding:20px;"><h2 style="color:#dc2626;">Invalid Reset Link</h2><p>This reset link is missing a token. Please request a new password reset.</p><p><a href="${frontendUrl}/login">Go to login</a></p></body></html>`);
-    }
-
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3030";
-    const htmlPath = path.join(__dirname, '..', 'public', 'reset-password.html');
-    let html = fs.readFileSync(htmlPath, 'utf8');
-    html = html.replace('{{FRONTEND_URL}}', frontendUrl);
-    res.send(html);
-  } catch (err) {
-    console.error('[FAIL] Reset password page error:', err);
-    res.status(500).send('<!DOCTYPE html><html><head><title>Error</title></head><body style="font-family:system-ui,sans-serif;max-width:400px;margin:40px auto;padding:20px;"><h2 style="color:#dc2626;">Error</h2><p>Failed to load reset page. Please try again later.</p></body></html>');
-  }
-};
-
 
 exports.resetPassword = async (req, res) => {
   console.log("\n========== RESET PASSWORD REQUEST ==========");

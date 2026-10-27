@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- DocuVault document wallet logo (light, for dark/blue surfaces) -->
+  <rect x="10" y="16" width="48" height="34" rx="8" fill="#ffffff" opacity="0.35"/>
+  <rect x="6" y="22" width="52" height="34" rx="9" fill="#ffffff"/>
+  <line x1="10" y1="24" x2="54" y2="24" stroke="#93c5fd" stroke-width="2" stroke-linecap="round" opacity="0.75"/>
+  <circle cx="52" cy="24" r="3.4" fill="#2563eb"/>
+  <rect x="15" y="33" width="32" height="20" rx="4" fill="#eff6ff"/>
+  <path d="M43 30h5v5l-5-5Z" fill="#dbeafe"/>
+  <rect x="21" y="38" width="20" height="3" rx="1.5" fill="#93c5fd"/>
+  <rect x="21" y="44" width="14" height="3" rx="1.5" fill="#60a5fa"/>
+  <circle cx="12" cy="49" r="3.5" fill="#f59e0b"/>
+  <circle cx="12" cy="49" r="1.3" fill="#ffffff" opacity="0.85"/>
+</svg>

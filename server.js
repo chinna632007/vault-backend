@@ -82,15 +82,21 @@ app.use("/stats", require("./routes/stats"));
 app.use("/wallet", require("./routes/wallet"));
 app.use("/downloads", require("./routes/downloads"));
 
-// Reset password page (backend-hosted) - serves reset form with token from URL
-app.get("/reset-password", require("./controllers/authController").resetPasswordPage);
-
 // Health check
 app.get("/", (req, res) => {
-  res.json({ 
+  res.json({
     message: "DocuVault Backend API is running",
     server_url: process.env.SERVER_URL
   });
+});
+
+// Serve static frontend assets (JS, CSS, images)
+app.use(express.static(path.join(__dirname, "public")));
+
+// SPA fallback — serve React app for all client-side routes (including /reset-password)
+// API routes and static files above take priority; everything else falls back to index.html
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // Global error handler
